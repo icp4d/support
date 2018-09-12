@@ -107,11 +107,10 @@ log_collector() {
         echo ------------------------
         get_log_by_cmd $temp_dir gluster_volume_status "gluster volume status"
 
-        #echo
-        #echo Collecting pod desciption for down pods...
-        #echo ------------------------
-        #get_log_by_cmd $temp_dir pod_description "kubectl get pods --all-namespaces | egrep -v 'Running|Completed'"
-        #get_log_by_cmd $temp_dir pod_description "kubectl get pods --all-namespaces | egrep -v 'Running|Completed' | awk '{print "kubectl describe pod " \$2 " --namespace=" \$1}'| /bin/bash"
+        echo
+        echo Collecting pod desciption for down pods...
+        echo ------------------------
+        get_log_by_cmd $temp_dir pod_description "`kubectl get pods --all-namespaces --no-headers | egrep -v 'Running|Completed' | awk '{print "kubectl describe pod " $2 " --namespace=" $1}'| /bin/bash`"
 }
 
 
