@@ -110,7 +110,14 @@ log_collector() {
         echo
         echo Collecting pod desciption for down pods...
         echo ------------------------
-        get_log_by_cmd $temp_dir pod_description "`kubectl get pods --all-namespaces --no-headers | egrep -v 'Running|Completed' | awk '{print "kubectl describe pod " $2 " --namespace=" $1}'| /bin/bash`"
+        tmpfile=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
+        trap 'rm -f $tmpfile' EXIT
+        kubectl get pods --all-namespaces --no-headers | egrep -v 'Running|Completed' | awk '{print "kubectl describe pod " $2 " --namespace="$1";"}' > $tmpfile
+        get_log_by_cmd $temp_dir pod_description "sh $tmpfile"
+
+        #get_log_by_cmd $temp_dir pod_description "`kubectl get pods --all-namespaces --no-headers | egrep -v 'Running|Completed' | awk '{print \"kubectl describe pod \" $2 \" --namespace=\" $1 \" \; \"}'`"
+        rm -f $tmpfile
+        trap - EXIT
 }
 
 
@@ -129,7 +136,7 @@ get_log_by_cmd(){
 	local name=$2
 	local cmd=$3
 	local log_file=$temp_dir"/$name"
-	eval $cmd > $log_file
+	$cmd > $log_file
 	check_log_file_exist $log_file $name
 }
 
