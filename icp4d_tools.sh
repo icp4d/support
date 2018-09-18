@@ -64,13 +64,14 @@ setup() {
     . $UTIL_DIR/util.sh
 }
 Prereq_CHK() {
-        local pre_install_check_result=preInstallCheckResult
-	local logs_dir=/tmp
-	/ibm/InstallPackage/pre_install_check.sh
+        local result=preInstallCheckResult
+	local logs_dir=`mktemp -d`
+	/ibm/InstallPackage/pre_install_check.sh --type="master"
 	local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
 	local archive_name="logs_"$$"_"$timestamp".tar.gz"
 	local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
-	build_archive $output_dir $archive_name $logs_dir "./$pre_install_check_result"
+        test -e /tmp/$result && cp /tmp/$result $logs_dir/$result.`hostname`
+	build_archive $output_dir $archive_name $logs_dir "./"
 	echo Logs collected at $output_dir/$archive_name
 	clean_up $logs_dir
 }
