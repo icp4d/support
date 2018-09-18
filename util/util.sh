@@ -91,6 +91,7 @@ sanity_checks() {
     fi
 
     verify_running_as_root
+    verify_authentication
     verify_execution_host_is_master
 }
 
@@ -114,6 +115,15 @@ verify_execution_host_is_master() {
         echo -e Running on a master node: IP $MASTER_IP not found on current host ${COLOR_RED}\[FAILED\]${COLOR_NC}
     fi
 }
+
+verify_authentication() {
+    kubectl api-versions 
+    if [ $? -ne 0 ]; then
+        /ibm/InstallPackage/icp-patch/kubectl-auth.sh localhost
+        echo -e  Authentication set for kubectl commnd ${COLOR_GREEN}\[OK\]${COLOR_NC}
+    fi
+}
+
 
 get_master_nodes() {
     local CONFIG_DIR=$1
