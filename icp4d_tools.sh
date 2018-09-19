@@ -60,6 +60,7 @@ Selected_Option() {
 
 
 setup() {
+	export HOME_DIR=`pwd`
 	export UTIL_DIR=`pwd`"/util"
     . $UTIL_DIR/util.sh
 }
@@ -78,6 +79,7 @@ Prereq_CHK() {
 
 Health_CHK() {
         local logs_dir=`mktemp -d`
+        cd $HOME_DIR
         ./health_check/icpd-health-check-master.sh
         local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
         local archive_name="logs_"$$"_"$timestamp".tar.gz"
@@ -89,9 +91,10 @@ Health_CHK() {
 
 Collect_Logs() {
 	local logs_dir=`mktemp -d`
+        cd $HOME_DIR
 	#run_on_all_nodes ./log_collector/icplogcollector-all-nodes.sh $logs_dir
 	#run_on_all_nodes ./log_collector/icplogcollector-master-nodes.sh $logs_dir
-	./log_collector/icplogcollector-master-nodes.sh $logs_dir
+        ./log_collector/icpd-logcollector-master-nodes.sh $logs_dir
 	local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
 	local archive_name="logs_"$$"_"$timestamp".tar.gz"
 	local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
