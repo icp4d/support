@@ -128,7 +128,7 @@ verify_authentication() {
 get_master_nodes() {
     local CONFIG_DIR=$1
     local HOSTS=$CONFIG_DIR/"hosts"
-    awk '/^\[worker\]/{p=1;next}/^\[/{p=0}p' $HOSTS |sed '/^\s*$/d'
+    awk '/^\[master\]/{p=1;next}/^\[/{p=0}p' $HOSTS |sed '/^\s*$/d'
 }
 
 is_master_node() {
