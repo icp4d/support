@@ -22,6 +22,33 @@ setup() {
 
 health_check() {
     local temp_dir=$1
+    all_nodes=`get_master_nodes $CONFIG_DIR|awk '{print $1}'; get_worker_nodes $CONFIG_DIR|awk '{print $1}'`
+
+        echo
+        echo Checking node availability...
+        echo ------------------------
+        for i in `echo $all_nodes`
+        do
+            ping -w 30 -c 1 $i > /dev/null
+            if [ $? -eq 0 ]; then
+               echo -e Ping to node $i ${COLOR_GREEN}\[OK\]${COLOR_NC}
+            else 
+               echo -e Ping to node $i ${COLOR_RED}\[FAILED\]${COLOR_NC}
+            fi
+        done
+
+        echo
+        echo Checking node accessible with ssh...
+        echo ------------------------
+        for i in `echo $all_nodes`
+        do
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no -o ConnectTimeout=10 -Tn $i exit > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+               echo -e SSH to node $i ${COLOR_GREEN}\[OK\]${COLOR_NC}
+            else 
+               echo -e SSH to node $i ${COLOR_RED}\[FAILED\]${COLOR_NC}
+            fi
+        done
 
         echo
         echo Checking node status...
