@@ -26,11 +26,11 @@ health_check() {
         echo
         echo Checking node status...
         echo ------------------------
-        down_node_count=$(kubectl get nodes --no-headers|egrep -v 'Ready'|wc -l)
+        down_node_count=$(kubectl get nodes --no-headers|egrep -vw 'Ready'|wc -l)
         if [ $down_node_count -gt 0 ]; then
             echo -e Not all nodes are ready ${COLOR_RED}\[FAILED\]${COLOR_NC}
             kubectl get nodes
-            exit 1
+            #exit 1
         else
             echo -e All nodes are ready ${COLOR_GREEN}\[OK\]${COLOR_NC}
         fi
@@ -38,11 +38,11 @@ health_check() {
         echo
         echo Checking PVCs on all namespaces...
         echo ------------------------
-        down_pvc_count=$(kubectl get pvc --all-namespaces --no-headers|egrep -v 'Bound|Available'|wc -l)
+        down_pvc_count=$(kubectl get pvc --all-namespaces --no-headers|egrep -vw 'Bound|Available'|wc -l)
         if [ $down_pvc_count -gt 0 ]; then
             echo -e Not all PVCs are healthy ${COLOR_RED}\[FAILED\]${COLOR_NC}
             kubectl get pvc --all-namespaces
-            exit 1
+            #exit 1
         else
             echo -e All PVCs are healthy ${COLOR_GREEN}\[OK\]${COLOR_NC}
         fi
@@ -50,11 +50,11 @@ health_check() {
         echo
         echo Checking gluster volumes...
         echo ------------------------
-        down_gluster_count=$(gluster volume info|egrep "Status:"|egrep -v 'Started'|wc -l)
+        down_gluster_count=$(gluster volume info|egrep "Status:"|egrep -vw 'Started'|wc -l)
         if [ $down_gluster_count -gt 0 ]; then
             echo -e Not all gluster volumes are started ${COLOR_RED}\[FAILED\]${COLOR_NC}
             gluster volume info|egrep "Status:"
-            exit 1
+            #exit 1
         else
             echo -e All gluster volumes are started ${COLOR_GREEN}\[OK\]${COLOR_NC}
         fi
@@ -62,11 +62,11 @@ health_check() {
         echo
         echo Checking pod status...
         echo ------------------------
-        down_pod_count=$(kubectl get pods --all-namespaces --no-headers|egrep -v 'Running|Complete'|wc -l)
+        down_pod_count=$(kubectl get pods --all-namespaces --no-headers|egrep -vw 'Running|Completed'|wc -l)
         if [ $down_pod_count -gt 0 ]; then
             echo -e Not all pods are ready ${COLOR_RED}\[FAILED\]${COLOR_NC}
             kubectl get pods --all-namespaces | egrep -v 'Running|Complete'
-            exit 1
+            #exit 1
         else
             echo -e All pods are ready ${COLOR_GREEN}\[OK\]${COLOR_NC}
         fi
