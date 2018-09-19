@@ -77,7 +77,14 @@ Prereq_CHK() {
 }
 
 Health_CHK() {
-        exit
+        local logs_dir=`mktemp -d`
+        ./health_check/icpd-health-check-master.sh
+        local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
+        local archive_name="logs_"$$"_"$timestamp".tar.gz"
+        local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
+        build_archive $output_dir $archive_name $logs_dir "./"
+        echo Logs collected at $output_dir/$archive_name
+        clean_up $logs_dir
 }
 
 Collect_Logs() {
