@@ -42,11 +42,40 @@ health_check() {
         echo ------------------------
         for i in `echo $all_nodes`
         do
-            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no -o ConnectTimeout=10 -Tn $i exit > /dev/null 2>&1
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
+                -o ConnectTimeout=10 -Tn $i exit > /dev/null 2>&1
             if [ $? -eq 0 ]; then
                echo -e SSH to node $i ${COLOR_GREEN}\[OK\]${COLOR_NC}
             else 
                echo -e SSH to node $i ${COLOR_RED}\[FAILED\]${COLOR_NC}
+            fi
+        done
+
+        echo
+        echo Checking Docker status...
+        echo ------------------------
+        for i in `echo $all_nodes`
+        do
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
+                -o ConnectTimeout=10 -Tn $i "systemctl status docker|egrep 'Active:'|egrep 'running'" > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+               echo -e Docker status on node $i ${COLOR_GREEN}\[OK\]${COLOR_NC}
+            else 
+               echo -e Docker status on node $i ${COLOR_RED}\[FAILED\]${COLOR_NC}
+            fi
+        done
+
+        echo
+        echo Checking Kubelet status...
+        echo ------------------------
+        for i in `echo $all_nodes`
+        do
+            ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
+                -o ConnectTimeout=10 -Tn $i "systemctl status kubelet|egrep 'Active:'|egrep 'running'" > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+               echo -e Kubelet status on node $i ${COLOR_GREEN}\[OK\]${COLOR_NC}
+            else 
+               echo -e Kubelet status on node $i ${COLOR_RED}\[FAILED\]${COLOR_NC}
             fi
         done
 
