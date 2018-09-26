@@ -114,9 +114,32 @@ log_collector() {
         trap 'rm -f $tmpfile' EXIT
         kubectl get pods --all-namespaces --no-headers | egrep -v 'Running|Completed' | awk '{print "kubectl describe pod " $2 " --namespace="$1";"}' > $tmpfile
         get_log_by_cmd $temp_dir pod_description "sh $tmpfile"
-
-        #get_log_by_cmd $temp_dir pod_description "`kubectl get pods --all-namespaces --no-headers | egrep -v 'Running|Completed' | awk '{print \"kubectl describe pod \" $2 \" --namespace=\" $1 \" \; \"}'`"
         rm -f $tmpfile
+        trap - EXIT
+
+        echo
+        echo Collecting logs for down pods...
+        echo ------------------------
+        TmpFileForDownPods=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
+        trap 'rm -f $TmpFileForDownPods' EXIT
+        name_space=`kubectl get namespaces --no-headers|awk '{print $1}'`
+        for ns in `echo $name_space`
+        do
+           down_pods=`kubectl get pods -n $ns --no-headers|egrep -v 'Running|Complete'|awk '{print $1}'`
+           for dp in `echo $down_pods`
+           do
+              container=`kubectl get pods -n $ns $dp -o jsonpath='{@.spec.containers[*].name}'`
+              for cnt in `echo $container`
+              do
+                 echo "echo '### '" >> $TmpFileForDownPods
+                 echo "echo '### NAMESPACE=$ns, POD=$dp, CONTAINER=$cnt ###'" >> $TmpFileForDownPods
+                 echo "echo '### kubectl logs -n $ns -p $dp -c $cnt'" >> $TmpFileForDownPods
+                 echo "kubectl logs -n $ns -p $dp -c $cnt" >> $TmpFileForDownPods
+              done
+           done
+        done
+        get_log_by_cmd $temp_dir log_for_down_pods "sh $TmpFileForDownPods"
+        rm -f $TmpFileForDownPods
         trap - EXIT
 }
 
