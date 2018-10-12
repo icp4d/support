@@ -1,7 +1,6 @@
 #!/bin/bash
 #run only on master nodes
 
-
 setup() {
     . $UTIL_DIR/util.sh
     #commonly used func are inside of util.sh
@@ -106,6 +105,31 @@ log_collector() {
         echo Collecting gluster volume status...
         echo ------------------------
         get_log_by_cmd $temp_dir gluster_volume_status "gluster volume status"
+
+        echo
+        echo Collecting resource usage at cluster level...
+        echo ------------------------
+        get_log_by_cmd $temp_dir kubectl_top_node "kubectl top node"
+
+        echo
+        echo Collecting detailed resource usage for each node...
+        echo ------------------------
+        TmpFileForResource=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
+        trap 'rm -f $TmpFileForResource' EXIT
+        nodes=$(kubectl get node --no-headers -o custom-columns=NAME:.metadata.name)
+        for node in $nodes; do
+           echo "echo ' '" >> $TmpFileForResource
+           echo "echo '### '" >> $TmpFileForResource
+           echo "echo '### Rescoure usage for Node: $node ###'" >> $TmpFileForResource
+           echo "kubectl describe node $node | sed '1,/Non-terminated Pods/d'" >> $TmpFileForResource
+           echo "echo ' '" >> $TmpFileForResource
+           echo "echo '### Disk usage for Node: $node ###'" >> $TmpFileForResource
+           echo "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
+                -o ConnectTimeout=10 -Tn $node 'du -h'" >> $TmpFileForResource
+        done
+        get_log_by_cmd $temp_dir resource_usage_by_node "sh $TmpFileForResource"
+        rm -f $TmpFileForResource
+        trap - EXIT
 
         echo
         echo Collecting pod desciption for down pods...
