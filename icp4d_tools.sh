@@ -125,7 +125,7 @@ Resource_CHK(){
 
 ICP_Tools_Menu() {
   while true; do
-    echo -e "Choose an option [1-4] \n";
+    echo -e "Choose an option [1-5] \n";
     options=("Pre-install checks for ICPD installation" "Health-check an installed ICPD cluster" "Collect diagnostics data" "List Resource Usage" "Exit")
     COLUMNS=12;
     select opt in "${options[@]}";
