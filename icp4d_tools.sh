@@ -21,6 +21,7 @@ Print_Usage() {
   echo -e "\n  OPTIONS:"
   echo "      -pre: Run pre-installation requirements checker (CPU, RAM, and Disk space, etc.)"
   echo "      -health: Run post-installation cluster health checker"
+  echo "      -resource: Check avaialble resoirce on cluster"
   echo "      -l, --log: Run log collection tool to collect log files from critical pods/containers"
   echo "      -h, --help: Prints this message"
   echo -e "\n  EXAMPLES:"
@@ -48,6 +49,7 @@ Selected_Option() {
             -p | --pre  ) TASK=Prereq_CHK; shift ;;
             -l | --log ) TASK=Collect_Logs; shift ;;
             --health ) TASK=Health_CHK; shift ;;
+            --resource ) TASK=Resource_CHK; shift ;;
             -- ) shift; break ;;
             * ) break ;;
         esac
@@ -103,10 +105,28 @@ Collect_Logs() {
 	clean_up $logs_dir
 }
 
+Resource_CHK(){
+        echo -e "****************** \n";
+        echo -e "Resources Usage at cluster level....\n"
+        kubectl top node
+        echo -e "Detailed Resource Usage for every node.......";
+        echo
+        nodes=$(kubectl get node --no-headers -o custom-columns=NAME:.metadata.name)
+        for node in $nodes; do
+           echo "Rescoure usage for Node: $node"
+           kubectl describe node "$node" | sed '1,/Non-terminated Pods/d'
+           echo
+           echo "Disk usages for Node: $node"
+           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
+                -o ConnectTimeout=10 -Tn $node 'du -h'
+           echo
+        done
+}
+
 ICP_Tools_Menu() {
   while true; do
     echo -e "Choose an option [1-4] \n";
-    options=("Pre-install checks for ICPD installation" "Health-check an installed ICPD cluster" "Collect diagnostics data" "Exit")
+    options=("Pre-install checks for ICPD installation" "Health-check an installed ICPD cluster" "Collect diagnostics data" "List Resource Usage" "Exit")
     COLUMNS=12;
     select opt in "${options[@]}";
     do
@@ -117,6 +137,8 @@ ICP_Tools_Menu() {
     	  Health_CHK; break;;
         "Collect diagnostics data")
           Collect_Logs; break;;
+	"List Resource Usage")
+	  Resource_CHK; break;;
         "Exit")
       		exitSCRIPT; break;;
     		*)
