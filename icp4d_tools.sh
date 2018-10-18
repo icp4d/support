@@ -62,10 +62,14 @@ Selected_Option() {
 
 
 setup() {
-	export HOME_DIR=`pwd`
-	export UTIL_DIR=`pwd`"/util"
+    export HOME_DIR=`pwd`
+    export UTIL_DIR=`pwd`"/util"
+    export LOG_COLLECT_DIR=`pwd`"/log_collector"
+    export PLUGINS=`pwd`"/log_collector/plugins"
     . $UTIL_DIR/util.sh
+    . $LOG_COLLECT_DIR/icpd-logcollector-master-nodes.sh
 }
+
 Prereq_CHK() {
         local result=preInstallCheckResult
 	local logs_dir=`mktemp -d`
@@ -91,7 +95,7 @@ Health_CHK() {
         clean_up $logs_dir
 }
 
-Collect_Logs() {
+Collect_Down_Pod_Logs() {
 	local logs_dir=`mktemp -d`
         cd $HOME_DIR
 	#run_on_all_nodes ./log_collector/icplogcollector-all-nodes.sh $logs_dir
@@ -103,6 +107,24 @@ Collect_Logs() {
 	build_archive $output_dir $archive_name $logs_dir "./"
 	echo Logs collected at $output_dir/$archive_name
 	clean_up $logs_dir
+}
+
+Collect_Component_Logs() {
+        export COMPONENT=dsx
+        export logs_dir=`mktemp -d`
+        export LINE=500
+
+        cd $HOME_DIR
+        for cmd in `cat ./log_collector/component_sets/dsx_logs.set`
+        do
+           . $PLUGINS/$cmd
+        done
+        local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
+        local archive_name="logs_"$$"_"$timestamp".tar.gz"
+        local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
+        build_archive $output_dir $archive_name $logs_dir "./"
+        echo Logs collected at $output_dir/$archive_name
+        clean_up $logs_dir
 }
 
 Resource_CHK(){
@@ -125,8 +147,8 @@ Resource_CHK(){
 
 ICP_Tools_Menu() {
   while true; do
-    echo -e "Choose an option [1-5] \n";
-    options=("Pre-install checks for ICPD installation" "Health-check an installed ICPD cluster" "Collect diagnostics data" "List Resource Usage" "Exit")
+    echo -e "Choose an option [1-6] \n";
+    options=("Pre-install checks for ICPD installation" "Health-check an installed ICPD cluster" "Collect diagnostics data for down pods" "Collect diagnostics data" "List Resource Usage" "Exit")
     COLUMNS=12;
     select opt in "${options[@]}";
     do
@@ -135,8 +157,10 @@ ICP_Tools_Menu() {
           Prereq_CHK; break;;
     	"Health-check an installed ICPD cluster")
     	  Health_CHK; break;;
+        "Collect diagnostics data for down pods")
+          Collect_Down_Pod_Logs; break;;
         "Collect diagnostics data")
-          Collect_Logs; break;;
+          Collect_Component_Logs; break;;
 	"List Resource Usage")
 	  Resource_CHK; break;;
         "Exit")

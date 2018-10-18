@@ -167,6 +167,28 @@ log_collector() {
         trap - EXIT
 }
 
+component_log_collector(){
+    local component=$COMPONENT
+    local tempdir=$logs_dir
+    local line=$LINE
+
+    echo
+    echo Collecting log for $component...
+    echo -----------------------------
+    name_space=zen
+    pod_list=`kubectl get pods -n $name_space --no-headers|egrep -i $component|awk '{print $1}'`
+    for current_pod in `echo $pod_list`
+    do
+       container=`kubectl get pods -n $name_space $current_pod -o jsonpath='{@.spec.containers[*].name}'`
+       for cnt in `echo $container`
+       do
+          outfile=`echo "$component"PodLogs_"$name_space"_"$current_pod"_"$cnt"`
+          cmd="kubectl logs -n $name_space --tail=$line $current_pod -c $cnt"
+          get_log_by_cmd $tempdir $outfile "$cmd"
+       done
+    done
+}
+
 
 check_log_file_exist() {
 	local log_file=$1
@@ -205,6 +227,11 @@ get_container_log_by_name() {
 
 
 TEMP_DIR=$1    ###sanjitc ####
-setup
-sanity_checks
-log_collector $TEMP_DIR
+typeset -fx setup
+typeset -fx sanity_checks
+#typeset -fx log_collector $TEMP_DIR
+typeset -fx log_collector
+typeset -fx component_log_collector
+typeset -fx check_log_file_exist
+typeset -fx get_log_by_cmd
+typeset -fx get_container_log_by_name
