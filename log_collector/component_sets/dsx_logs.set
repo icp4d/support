@@ -6,7 +6,7 @@ system/systemctl_kubelet
 system/gluster_volume_info
 system/gluster_volume_status
 system/kubectl_get_endpoint
-#system/kubectl_cluster_info
+system/kubectl_cluster_info
 system/vmstat
 
 dsx/dsx_version
