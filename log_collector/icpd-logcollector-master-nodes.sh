@@ -13,158 +13,100 @@ setup() {
     echo
     echo =============================================================
     echo
-    echo Running ICP for Data Checker in Log Collector mode ...
+    echo Running ICP for Data Log Collector Mode [ $1 ] ...
     #echo ICP Version: $PRODUCT_VERSION
     #echo Release Date: $RELEASE_DATE
     echo =============================================================
 }
 
-log_collector() {
-    local temp_dir=$1
-	echo
-        echo Collecting os information...
-        echo ------------------------
-	get_log_by_cmd $temp_dir os_info "uname -a"
+myEcho()
+{
+  echo -n $1
+}
 
-	echo
-        echo Collecting Redhat release information...
-        echo ------------------------
-	get_log_by_cmd $temp_dir readhat_release "cat /etc/redhat-release"
 
-	echo
-	echo Collecting mem info...
-        echo ------------------------
-	get_log_by_cmd $temp_dir mem_info "cat /proc/meminfo"
-
-        echo
-        echo Collecting docker version...
-        echo ------------------------
-        get_log_by_cmd $temp_dir docker_version "docker version"
-
-        echo
-        echo Collecting docker info...
-        echo ------------------------
-        get_log_by_cmd $temp_dir docker_info "docker info"
-
-        echo
-        echo Collecting docker images info...
-        echo ------------------------
-        get_log_by_cmd $temp_dir docker_images "docker images"
-
-        echo
-        echo Collecting docker ps info...
-        echo ------------------------
-        get_log_by_cmd $temp_dir docker_ps_a "docker ps -a"
-
-        echo
-        echo Collecting docker status...
-        echo ------------------------
-        get_log_by_cmd $temp_dir docker_status "systemctl status docker"
-
-        echo
-        echo Collecting docker log...
-        echo ------------------------
-        get_log_by_cmd $temp_dir docker_log "journalctl -u docker"
-
-        echo
-        echo Collecting kubelet config...
-        echo ------------------------
-        get_log_by_cmd $temp_dir kubelet_config "cat /var/lib/kubelet/kubelet-config"
-
-        echo
-        echo Collecting kubelet status...
-        echo ------------------------
-        get_log_by_cmd $temp_dir kubelet_status "systemctl status kubelet"
-
-        echo
-        echo Collecting kubelet log...
-        echo ------------------------
-        get_log_by_cmd $temp_dir kubelet_log "journalctl -u kubelet"
-
-        echo
-        echo Collecting kubelet node status...
-        echo ------------------------
-        get_log_by_cmd $temp_dir kubelet_get_nodes "kubectl get nodes"
-
-        echo
-        echo Collecting kubelet pod status...
-        echo ------------------------
-        get_log_by_cmd $temp_dir kubelet_get_pods "kubectl get pods --all-namespaces -o wide"
-
-        echo
-        echo Collecting kubelet pvc status...
-        echo ------------------------
-        get_log_by_cmd $temp_dir kubelet_get_pvc "kubectl get pvc --all-namespaces"
-
-        echo
-        echo Collecting gluster info...
-        echo ------------------------
-        get_log_by_cmd $temp_dir gluster_volume_info "gluster volume info"
-
-        echo
-        echo Collecting gluster volume status...
-        echo ------------------------
-        get_log_by_cmd $temp_dir gluster_volume_status "gluster volume status"
-
-        echo
-        echo Collecting resource usage at cluster level...
-        echo ------------------------
-        get_log_by_cmd $temp_dir kubectl_top_node "kubectl top node"
-
-        echo
-        echo Collecting detailed resource usage for each node...
-        echo ------------------------
-        TmpFileForResource=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
-        trap 'rm -f $TmpFileForResource' EXIT
-        nodes=$(kubectl get node --no-headers -o custom-columns=NAME:.metadata.name)
-        for node in $nodes; do
-           echo "echo ' '" >> $TmpFileForResource
-           echo "echo '### '" >> $TmpFileForResource
-           echo "echo '### Rescoure usage for Node: $node ###'" >> $TmpFileForResource
-           echo "kubectl describe node $node | sed '1,/Non-terminated Pods/d'" >> $TmpFileForResource
-           echo "echo ' '" >> $TmpFileForResource
-           echo "echo '### Disk usage for Node: $node ###'" >> $TmpFileForResource
-           echo "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
-                -o ConnectTimeout=10 -Tn $node 'du -h'" >> $TmpFileForResource
-        done
-        get_log_by_cmd $temp_dir resource_usage_by_node "sh $TmpFileForResource"
-        rm -f $TmpFileForResource
-        trap - EXIT
-
-        echo
-        echo Collecting pod desciption for down pods...
-        echo ------------------------
-        tmpfile=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
-        trap 'rm -f $tmpfile' EXIT
-        kubectl get pods --all-namespaces --no-headers | egrep -v 'Running|Completed' | awk '{print "kubectl describe pod " $2 " --namespace="$1";"}' > $tmpfile
-        get_log_by_cmd $temp_dir pod_description "sh $tmpfile"
-        rm -f $tmpfile
-        trap - EXIT
-
-        echo
-        echo Collecting logs for down pods...
-        echo ------------------------
-        TmpFileForDownPods=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
-        trap 'rm -f $TmpFileForDownPods' EXIT
-        name_space=`kubectl get namespaces --no-headers|awk '{print $1}'`
-        for ns in `echo $name_space`
+healthy_pods_log_collector(){
+    local tempdir=$logs_dir
+    #local line=$LINE
+    local line=50
+    myEcho "Collecting logs for healthy pods..."
+    TmpFileForPods=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
+    trap 'rm -f $TmpFileForPods' EXIT
+    name_space=`kubectl get namespaces --no-headers|awk '{print $1}'`
+    for ns in `echo $name_space`
+    do
+        all_pods=`kubectl get pods -n $ns --no-headers|awk '{print $1}'`
+        for dp in `echo $all_pods`
         do
-           down_pods=`kubectl get pods -n $ns --no-headers|egrep -v 'Running|Complete'|awk '{print $1}'`
-           for dp in `echo $down_pods`
+           echo "echo '### '" >> $TmpFileForPods
+           echo "echo '### NAMESPACE=$ns, POD=$dp ###'" >> $TmpFileForPods
+           echo "echo '### kubectl logs -n $ns $dp --tail=$line'" >> $TmpFileForPods
+           #echo "kubectl logs -n $ns -p $dp -c $cnt" >> $TmpFileForPods
+           echo "kubectl logs -n $ns  $dp --tail=50 2>/dev/null" >> $TmpFileForPods
+        done
+    done
+    get_log_by_cmd $tempdir log_for_healthy_pods "sh $TmpFileForPods"
+    rm -f $TmpFileForPods
+    trap - EXIT
+}
+
+
+down_pods_log_collector(){
+    local tempdir=$logs_dir
+    myEcho "Collecting logs for down pods..."
+    TmpFileForDownPods=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
+    trap 'rm -f $TmpFileForDownPods' EXIT
+    name_space=`kubectl get namespaces --no-headers|awk '{print $1}'`
+    for ns in `echo $name_space`
+    do
+        down_pods=`kubectl get pods -n $ns --no-headers|egrep -v 'Running|Complete'|awk '{print $1}'`
+        for dp in `echo $down_pods`
+        do
+           container=`kubectl get pods -n $ns $dp -o jsonpath='{@.spec.containers[*].name}'`
+           for cnt in `echo $container`
            do
-              container=`kubectl get pods -n $ns $dp -o jsonpath='{@.spec.containers[*].name}'`
-              for cnt in `echo $container`
-              do
-                 echo "echo '### '" >> $TmpFileForDownPods
-                 echo "echo '### NAMESPACE=$ns, POD=$dp, CONTAINER=$cnt ###'" >> $TmpFileForDownPods
-                 echo "echo '### kubectl logs -n $ns -p $dp -c $cnt'" >> $TmpFileForDownPods
-                 echo "kubectl logs -n $ns -p $dp -c $cnt" >> $TmpFileForDownPods
-              done
+               echo "echo '### '" >> $TmpFileForDownPods
+               echo "echo '### NAMESPACE=$ns, POD=$dp, CONTAINER=$cnt ###'" >> $TmpFileForDownPods
+               echo "echo '### kubectl logs -n $ns -p $dp -c $cnt'" >> $TmpFileForDownPods
+               echo "kubectl logs -n $ns -p $dp -c $cnt" >> $TmpFileForDownPods
            done
         done
-        get_log_by_cmd $temp_dir log_for_down_pods "sh $TmpFileForDownPods"
-        rm -f $TmpFileForDownPods
-        trap - EXIT
+    done
+    get_log_by_cmd $tempdir log_for_down_pods "sh $TmpFileForDownPods"
+    rm -f $TmpFileForDownPods
+    trap - EXIT
+}
+
+node_resource_usage(){
+    local tempdir=$logs_dir
+    myEcho "Collecting detailed resource usage for each node..."
+    TmpFileForResource=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
+    trap 'rm -f $TmpFileForResource' EXIT
+    nodes=$(kubectl get node --no-headers -o custom-columns=NAME:.metadata.name)
+    for node in $nodes; do
+       echo "echo ' '" >> $TmpFileForResource
+       echo "echo '### '" >> $TmpFileForResource
+       echo "echo '### Rescoure usage for Node: $node ###'" >> $TmpFileForResource
+       echo "kubectl describe node $node | sed '1,/Non-terminated Pods/d'" >> $TmpFileForResource
+       echo "echo ' '" >> $TmpFileForResource
+       echo "echo '### Disk usage for Node: $node ###'" >> $TmpFileForResource
+       echo "ssh -q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
+                -o ConnectTimeout=10 -Tn $node 'du -h'" >> $TmpFileForResource
+    done
+    get_log_by_cmd $tempdir resource_usage_by_node "sh $TmpFileForResource"
+    rm -f $TmpFileForResource
+    trap - EXIT
+}
+
+pod_description_down_pods(){
+    local tempdir=$logs_dir
+    myEcho "Collecting pod desciption for down pods..."
+    tmpfile=$(mktemp /tmp/icpd-temp.XXXXXXXXXX)
+    trap 'rm -f $tmpfile' EXIT
+    kubectl get pods --all-namespaces --no-headers | egrep -v 'Running|Completed' | awk '{print "kubectl describe pod " $2 " --namespace="$1";"}' > $tmpfile
+    get_log_by_cmd $tempdir pod_description "sh $tmpfile"
+    rm -f $tmpfile
+    trap - EXIT
 }
 
 component_log_collector(){
@@ -195,6 +137,7 @@ check_log_file_exist() {
 	local name=$2
 	if [ -f $log_file ]; then
                 print_passed_message "$name collected: $log_file"
+                #print_passed_message ""
         else
                 print_failed_message "failed to collect $name"
         fi
@@ -205,7 +148,7 @@ get_log_by_cmd(){
 	local name=$2
 	local cmd=$3
 	local log_file=$temp_dir"/$name"
-	$cmd > $log_file
+	eval $cmd > $log_file
 	check_log_file_exist $log_file $name
 }
 
@@ -226,7 +169,6 @@ get_container_log_by_name() {
 }
 
 
-TEMP_DIR=$1    ###sanjitc ####
 typeset -fx setup
 typeset -fx sanity_checks
 #typeset -fx log_collector $TEMP_DIR
@@ -235,3 +177,5 @@ typeset -fx component_log_collector
 typeset -fx check_log_file_exist
 typeset -fx get_log_by_cmd
 typeset -fx get_container_log_by_name
+
+TEMP_DIR=$1    ###sanjitc ####

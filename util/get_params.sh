@@ -11,8 +11,6 @@
 # . $ROOT/bin/get_params.sh
 # Short forms of arguments supported with the help of $INI_FILE map. 
 # A map (below $INI_FILE) is provided where shorts forms are mapped to the long forms.
-# Callee need to pass the key which is same as the section whose maps are to be refered.
-# for example, if the section in ini file is icp4dsupport use:
 # . $ROOT/bin/get_params.sh icp4dsupport
 # [--var=yes] can be written as -v [assuming the INIT_FILE this map is provided]
 # which is translated to _ICP_VAL=yes
@@ -23,7 +21,6 @@
 #     get_params.sh -v val -c sectionkey [assume in map v=expanedV, c=expandedC]
 #     sets 2 varables : _ICP_EXPANDEDV=val, _ICP_EXPANDEDC=yes
 # use --debug=yes to see some debugging info
-echo $UTIL_DIR
 if [ -f $UTIL_DIR/conf/param_maps.ini ]
 then
         INI_FILE=$UTIL_DIR/conf/param_maps.ini
@@ -32,8 +29,6 @@ else
                 echo ""
                 echo "Please check whether environment is installed and setup correctly."
                 echo "File param_maps.ini does not exist in $TOP/bin/conf"
-                echo "If this is a horizontal cluster env, variable ICP_CONFIG_DIR must"
-                echo "specify alternate directory containing configuration files from $TOP/bin/conf"
                 echo ""
                 exit 1
        
@@ -64,25 +59,24 @@ case ${_VAR} in
    ;;
        -[^-]* )
             _NAME=`echo ${_VAR}|cut -f2 -d "-"`
-            echo $_NAME
             INI_SECTION="${args[$((cnt-1))]}"
             eval `sed -e 's/[[:space:]]*\=[[:space:]]*/=/g' \
                           -e 's/;.*$//' \
                           -e 's/[[:space:]]*$//' \
                           -e 's/^[[:space:]]*//' \
                           -e "s/^\(.*\)=\([^\"']*\)$/\1=\"\2\"/" \
-                          < $INI_FILE  | sed -n -e "/^\[$INI_SECTION\]/,/^\s*\[/{/^[^;].*\=.*/p;}"`
+                          < $INI_FILE`  
             _NAME=`eval echo \\$${_NAME}|tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'`
-            echo $_NAME
             _NEW_NAME="_ICP_${_NAME}"
             ptr=$((ptr+1))
-             _VALUE="${args[$((ptr))]}"
-            if [ `echo ${_VALUE} | grep -e "-" -e "$INI_SECTION"` ]; then
+            _VALUE="${args[$((ptr))]}"
+            if [ `echo ${_VALUE} | grep -e "-"` ] || [[ -z ${_VALUE} ]] ; then
             _VALUE="yes"
             else
               ptr=$((ptr+1))
             fi
             flag=1
+            #echo $_NEW_NAME=$_VALUE
     
    ;;
   esac

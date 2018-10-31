@@ -91,8 +91,10 @@ sanity_checks() {
     fi
 
     verify_running_as_root
+    verify_kubectl
     verify_authentication
-    verify_execution_host_is_master
+    #TODO
+    #verify_execution_host_is_master
 }
 
 verify_running_as_root() {
@@ -105,19 +107,43 @@ verify_running_as_root() {
     fi
 }
 
+verify_kubectl() {
+    if ! [ -x "$(command -v kubectl)" ]; then
+        echo -e kubectl not found ${COLOR_RED}\[FAILED\]${COLOR_NC}
+        echo Cannot perform further checks, exiting...
+  	exit 1
+    else
+        echo -e kubectl found ${COLOR_GREEN}\[OK\]${COLOR_NC}
+    fi
+}
+
 verify_execution_host_is_master() {
-    MASTER_IP=$(grep -A 1 -i '^\[master\]' $HOSTS_FILE | tail -n 1)
-    host_ips=$(ip addr show | grep inet | awk '{print $2}' | tr '/' ' ')
-    grep $MASTER_IP <<< $host_ips >/dev/null
+    #TODO
+    #MASTER_IP=$(grep -A 1 -i '^\[master\]' $HOSTS_FILE | tail -n 1)
+    MASTER_IP=$(cut -f1 -d' ' $HOSTS_FILE  | tr '\n' ' ' | grep -o -P '(?<=\[master\]).*(?=\[worker\])')
+    #MASTER_IP=$(grep -o -P '(?<=\[master\]).*(?=\[worker\])' $HOSTS_FILE)
+    host_ips=$(ip addr show | grep inet | awk '{print $2}' | tr '/' ' '|cut -f1 -d' ')
+    #grep $MASTER_IP <<< $host_ips >/dev/null
+    for item1 in "${MASTER_IP[@]}"; do 
+    	for item2 in "${host_ips[@]}"; do
+        echo matching $item1 $item2
+        [[ $item1 == "$item2" ]] && continue 2
+    	done
+
+    	# If we reached here, nothing matched.
+   	 not_in_a+=( "$item1" )
+    done 
     if [[ $? = 0 ]]; then
         echo -e Running on a master node ${COLOR_GREEN}\[OK\]${COLOR_NC}
     else
         echo -e Running on a master node: IP $MASTER_IP not found on current host ${COLOR_RED}\[FAILED\]${COLOR_NC}
+        echo Cannot perform further checks, exiting...
+  	exit 1
     fi
 }
 
 verify_authentication() {
-    kubectl api-versions 
+    kubectl api-versions >/dev/null 2>&1 
     if [ $? -ne 0 ]; then
         /ibm/InstallPackage/icp-patch/kubectl-auth.sh localhost
         echo -e  Authentication set for kubectl commnd ${COLOR_GREEN}\[OK\]${COLOR_NC}

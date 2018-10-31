@@ -126,7 +126,68 @@ health_check() {
         else
             echo -e All pods are ready ${COLOR_GREEN}\[OK\]${COLOR_NC}
         fi
+		
+		 
+		echo
+		echo Checking Disk Status for Nodes ...
+		echo ------------------------
+		
+        nodes=$(kubectl get nodes --no-headers -o custom-columns=NAME:.metadata.name)
+     
+        for node in $nodes; do
+		    
+			disk=$(kubectl describe  node $node | grep 'OutOfDisk        False' |  wc -l)
+			if [ $disk -eq 0 ]; then
+				echo -e Node $node is out of Disk Space ${COLOR_RED}\[FAILED\]${COLOR_NC}
+			else	
+			    echo -e Node $node has sufficient disk space ${COLOR_GREEN}\[OK\]${COLOR_NC}
+			fi
+		done
+		
+		echo
+		echo Checking Memory Status for Nodes ...
+		echo ------------------------
+		for node in $nodes; do
+		
+			mem=$(kubectl describe  node $node | grep 'MemoryPressure   False' |  wc -l)
+			if [ $mem -eq 0 ]; then
+				echo -e Node $node is out of Memory ${COLOR_RED}\[FAILED\]${COLOR_NC}
+			else	
+			    echo -e Node $node has sufficient memory available ${COLOR_GREEN}\[OK\]${COLOR_NC}
+			fi
+		done
+		
+		echo
+		echo Checking Disk Pressure for Nodes ...
+		echo ------------------------
+		for node in $nodes; do
+			dp=$(kubectl describe  node $node | grep 'DiskPressure     False' |  wc -l)
+			if [ $dp -eq 0 ]; then
+				echo -e Node $node has disk pressure ${COLOR_RED}\[FAILED\]${COLOR_NC}
+			else	
+			    echo -e Node $node has no disk pressure ${COLOR_GREEN}\[OK\]${COLOR_NC}
+			fi
+			
+		done
+			
+		echo
+		echo Checking Disk PID Pressure for Nodes ...
+		echo ------------------------
+		for node in $nodes; do
+			pid=$(kubectl describe  node $node | grep 'PIDPressure      False' |  wc -l)
+			if [ $pid -eq 0 ]; then
+				echo -e Node $node has PID pressure ${COLOR_RED}\[FAILED\]${COLOR_NC}
+			else	
+			    echo -e Node $node has sufficient PID available ${COLOR_GREEN}\[OK\]${COLOR_NC}
+			fi
+			
+		done	
+
+
 }
+
+
+
 
 check_log_file_exist() {
         local log_file=$1

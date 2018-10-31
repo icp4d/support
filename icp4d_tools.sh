@@ -23,153 +23,208 @@ Print_Usage() {
   echo "      -p, --preinstall: Run pre-installation requirements checker (CPU, RAM, and Disk space, etc.)"
   echo "      -h, --health: Run post-installation cluster health checker"
   echo "      -c, --collect=smart|standard: Run log collection tool to collect diagnostics and logs files from every pod/container. Default is smart"
-  echo "      -lt, --logtail=-1|K Capture last K lines or all when -1, works with stanard collect mode" 
+  echo "          --collectdb2: Run DB2 Hand log collection, works with --collect=standard option"
+  echo "          --collectdsx: Run DSX Diagnostice log collection, works with --collect=standard option"
+  echo "          --line : Capture N numbner of rows from pod log"
   echo "      -h, --help: Prints this message"
   echo -e "\n  EXAMPLES:"
   echo "      $0 -preinstall"
   echo "      $0 --health"
   echo "      $0 --collect=smart"
+  echo "      $0 --collect=standard --collectdb2"
+  echo "      $0 --collect=standard --collectdsx --line=100"
   echo
   exit 0
 }
 
 Selected_Option() {
   #entry to the tool
+      
+  if [ $# -eq 0 ] || [ ! -z ${_ICP_HELP} ] ; then
+    Print_Usage
+    exit 0
+  fi
+
+  if [ ! -z ${_ICP_HELP} ]; then
+    echo ewwww
+    Print_Usage;
+    exit
+  fi
+
+  if [ ! -z $_ICP_LINE ]; then
+    export LINE=$_ICP_LINE
+    echo LINE=$LINE 
+  fi
 	
   #Switch between Wizard or Param driven tooling 
+  
+  sanity_checks
 		
   if [ ! -z ${_ICP_INTERACTIVE} ]; then
-     echo " switching to Wizard Based"
-     ICP_Tools_Menu
-     exit
+    echo " switching to Wizard Based"
+    ICP_Tools_Menu
+    exit
   fi
-	
-  if [ ! -z ${_ICP_HELP} ]; then
-     Print_Usage;
-     exit
-  fi
+
 	
   if [ ! -z ${_ICP_COLLECT} ]; then
-     Collect_Logs;
+    Collect_Logs $@;
   fi
-	
-	
+
   if [ ! -z ${_ICP_HEALTH} ]; then
-     Health_CHK;
-     #Resource_CHK;
+    Health_CHK;
   fi
 	
   if [ ! -z ${_ICP_PREINSTALL} ]; then
-     Prereq_CHK;
+    Prereq_CHK;
   fi
 }
 
 
 setup() {
-    export HOME_DIR=`pwd`
-    export UTIL_DIR=`pwd`"/util"
-    export LOG_COLLECT_DIR=`pwd`"/log_collector"
-    export PLUGINS=`pwd`"/log_collector/plugins"
-    . $UTIL_DIR/util.sh
-    . $UTIL_DIR/get_params.sh
-    . $LOG_COLLECT_DIR/icpd-logcollector-master-nodes.sh
+  export HOME_DIR=`pwd`
+  export UTIL_DIR=`pwd`"/util"
+  export LOG_COLLECT_DIR=`pwd`"/log_collector"
+  export PLUGINS=`pwd`"/log_collector/plugins"
+
+  export LINE=500
+
+  source $UTIL_DIR/util.sh
+  . $UTIL_DIR/get_params.sh
+  #. $LOG_COLLECT_DIR/icpd-logcollector-master-nodes.sh
+
 }
+
+
+
+
+setupCollectionDirectory()
+{
+  if [ -z "$LOGS_DIR" ]; then 
+    LOGS_DIR=`mktemp -d`
+	    
+  fi
+}
+
 
 Prereq_CHK() {
-        local result=preInstallCheckResult
-	local logs_dir=`mktemp -d`
-	/ibm/InstallPackage/pre_install_check.sh --type="master"
-	local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
-	local archive_name="logs_"$$"_"$timestamp".tar.gz"
-	local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
-        test -e /tmp/$result && cp /tmp/$result $logs_dir/$result.`hostname`
-	build_archive $output_dir $archive_name $logs_dir "./"
-	echo Logs collected at $output_dir/$archive_name
-	clean_up $logs_dir
+  /ibm/InstallPackage/pre_install_check.sh --type="master"  | tee preinstall_check.log 
 }
+
 
 Health_CHK() {
-        local logs_dir=`mktemp -d`
-        cd $HOME_DIR
-        ./health_check/icpd-health-check-master.sh
-        local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
-        local archive_name="logs_"$$"_"$timestamp".tar.gz"
-        local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
-        build_archive $output_dir $archive_name $logs_dir "./"
-        echo Logs collected at $output_dir/$archive_name
-        clean_up $logs_dir
+  local logs_dir=`mktemp -d`
+  cd $HOME_DIR
+  ./health_check/icpd-health-check-master.sh | tee health_check.log
 }
 
-Collect_Down_Pod_Logs() {
-	local logs_dir=`mktemp -d`
-        cd $HOME_DIR
-	#run_on_all_nodes ./log_collector/icplogcollector-all-nodes.sh $logs_dir
-	#run_on_all_nodes ./log_collector/icplogcollector-master-nodes.sh $logs_dir
-        ./log_collector/icpd-logcollector-master-nodes.sh $logs_dir
-	local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
-	local archive_name="logs_"$$"_"$timestamp".tar.gz"
-	local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
-	build_archive $output_dir $archive_name $logs_dir "./"
-	echo Logs collected at $output_dir/$archive_name
-	clean_up $logs_dir
+
+
+Collect_Logs() {
+  local logs_dir=`mktemp -d`
+  cd $HOME_DIR
+
+  if [[ "$_ICP_COLLECT" == standard ]]; then
+
+    pluginset="./log_collector/component_sets/collect_all_pod_logs.set"
+    # Check for component
+    if [ ! -z $_ICP_COLLECTDB2 ]; then
+       export COMPONENT=db2
+       export DB2POD=`kubectl get pod --all-namespaces --no-headers -o custom-columns=NAME:.metadata.name|grep $COMPONENT`
+       pluginset="./log_collector/component_sets/db2_hang_log.set 
+                  ./log_collector/component_sets/collect_all_pod_logs.set"
+    elif [ ! -z $_ICP_COLLECTDSX ]; then
+       export COMPONENT=dsx
+       pluginset="./log_collector/component_sets/dsx_logs.set 
+                  ./log_collector/component_sets/collect_all_pod_logs.set"
+    fi
+
+  elif [[ "$_ICP_COLLECT" == smart ]]; then
+
+    pluginset="./log_collector/component_sets/collect_down_pod_logs.set"
+
+  else
+
+    #future we might have more modes, for now defaulting to smart.
+    pluginset="./log_collector/component_sets/collect_down_pod_logs.set"
+
+  fi
+
+  for cmd in `cat ${pluginset}`
+  do
+    . $PLUGINS/$cmd
+  done
+
+  local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
+  local archive_name="logs_"$$"_"$timestamp".tar.gz"
+  local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
+  build_archive $output_dir $archive_name $logs_dir "./"
+  echo Logs collected at $output_dir/$archive_name
+  clean_up $logs_dir
 }
+
+
 
 Collect_Component_Logs() {
-        export COMPONENT=dsx
-        export logs_dir=`mktemp -d`
-        export LINE=500
+  export COMPONENT=dsx
+  export logs_dir=`mktemp -d`
+  #export LINE=500
 
-        cd $HOME_DIR
-        for cmd in `cat ./log_collector/component_sets/dsx_logs.set`
-        do
-           . $PLUGINS/$cmd
-        done
-        local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
-        local archive_name="logs_"$$"_"$timestamp".tar.gz"
-        local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
-        build_archive $output_dir $archive_name $logs_dir "./"
-        echo Logs collected at $output_dir/$archive_name
-        clean_up $logs_dir
+  cd $HOME_DIR
+  for cmd in `cat ./log_collector/component_sets/dsx_logs.set`
+  do
+    . $PLUGINS/$cmd
+  done
+  local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
+  local archive_name="logs_"$$"_"$timestamp".tar.gz"
+  local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
+  build_archive $output_dir $archive_name $logs_dir "./"
+  echo Logs collected at $output_dir/$archive_name
+  clean_up $logs_dir
 }
 
 
 Collect_DB2_Hang_Logs() {
-        export COMPONENT=db2
-        export logs_dir=`mktemp -d`
-        export LINE=500
-        export DB2POD=`kubectl get pod --all-namespaces --no-headers -o custom-columns=NAME:.metadata.name|grep db2`
+  export COMPONENT=db2
+  export logs_dir=`mktemp -d`
+  export LINE=500
+  export DB2POD=`kubectl get pod --all-namespaces --no-headers -o custom-columns=NAME:.metadata.name|grep $COMPONENT`
 
-        cd $HOME_DIR
-        for cmd in `cat ./log_collector/component_sets/db2_hang_log.set`
-        do
-           . $PLUGINS/$cmd
-        done
-        local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
-        local archive_name="logs_"$$"_"$timestamp".tar.gz"
-        local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
-        build_archive $output_dir $archive_name $logs_dir "./"
-        echo Logs collected at $output_dir/$archive_name
-        clean_up $logs_dir
+  echo "Collecting diagnostics data for $COMPONENT"
+  echo "------------------------------------------"
+
+  cd $HOME_DIR
+  for cmd in `cat ./log_collector/component_sets/db2_hang_log.set`
+  do
+     . $PLUGINS/$cmd
+  done
+  local timestamp=`date +"%Y-%m-%d-%H-%M-%S"`
+  local archive_name="logs_"$$"_"$timestamp".tar.gz"
+  local output_dir=`mktemp -d -t icp4d_collect_log.XXXXXXXXXX`
+  build_archive $output_dir $archive_name $logs_dir "./"
+  echo Logs collected at $output_dir/$archive_name
+  clean_up $logs_dir
 }
 
 
 Resource_CHK(){
-        echo -e "****************** \n";
-        echo -e "Resources Usage at cluster level....\n"
-        kubectl top node
-        echo -e "Detailed Resource Usage for every node.......";
-        echo
-        nodes=$(kubectl get node --no-headers -o custom-columns=NAME:.metadata.name)
-        for node in $nodes; do
-           echo "Rescoure usage for Node: $node"
-           kubectl describe node "$node" | sed '1,/Non-terminated Pods/d'
-           echo
-           echo "Disk usages for Node: $node"
-           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
-                -o ConnectTimeout=10 -Tn $node 'du -h'
-           echo
-        done
+  echo -e "****************** \n";
+  echo -e "Resources Usage at cluster level....\n"
+  kubectl top node
+  echo -e "Detailed Resource Usage for every node.......";
+  echo
+  nodes=$(kubectl get node --no-headers -o custom-columns=NAME:.metadata.name)
+  for node in $nodes; do
+    echo "Rescoure usage for Node: $node"
+    kubectl describe node "$node" | sed '1,/Non-terminated Pods/d'
+    echo
+    echo "Disk usages for Node: $node"
+    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PasswordAuthentication=no \
+        -o ConnectTimeout=10 -Tn $node 'du -h'
+    echo
+  done
 }
+
 
 ICP_Tools_Menu() {
   while true; do
@@ -178,13 +233,13 @@ ICP_Tools_Menu() {
     COLUMNS=12;
     select opt in "${options[@]}";
     do
-    	case $opt in
+      case $opt in
         "Pre-install checks for ICPD installation")
-          Prereq_CHK; break;;
+    	  echo "hhelloo" $opt; Prereq_CHK; break;;
     	"Health-check an installed ICPD cluster")
     	  Health_CHK; break;;
         "Collect diagnostics data for down pods")
-          Collect_Down_Pod_Logs; break;;
+          Collect_Logs; break;;
         "Collect diagnostics data for DSX")
           Collect_Component_Logs; break;;
         "Collect diagnostics data for DB2")
@@ -192,14 +247,15 @@ ICP_Tools_Menu() {
 	"List Resource Usage")
 	  Resource_CHK; break;;
         "Exit")
-      		exitSCRIPT; break;;
-    		*)
-    			echo invalid option;
-    			;;
+          exitSCRIPT; break;;
+  	*)
+          echo invalid option;
+          ;;
     	esac
     done
   done
 }
+
 
 exitSCRIPT(){
   echo -e "Exiting...";
@@ -207,5 +263,4 @@ exitSCRIPT(){
 }
 
 setup $@
-#Selected_Option $@
-ICP_Tools_Menu
+Selected_Option $@
