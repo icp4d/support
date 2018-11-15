@@ -19,20 +19,19 @@ Print_Usage() {
   echo "Usage:"
   echo "$0 [OPTIONS]"
   echo -e "\n  OPTIONS:"
-  echo "      -i, --interactive: Run the tool in an interactive mode"
-  echo "      -p, --preinstall: Run pre-installation requirements checker (CPU, RAM, and Disk space, etc.)"
-  echo "      -h, --health: Run post-installation cluster health checker"
-  echo "      -c, --collect=smart|standard: Run log collection tool to collect diagnostics and logs files from every pod/container. Default is smart"
-  echo "          --collectdb2: Run DB2 Hand log collection, works with --collect=standard option"
-  echo "          --collectdsx: Run DSX Diagnostice log collection, works with --collect=standard option"
-  echo "          --line : Capture N numbner of rows from pod log"
-  echo "      -h, --help: Prints this message"
+  echo "       --preinstall: Run pre-installation requirements checker (CPU, RAM, and Disk space, etc.)"
+  echo "       --health: Run post-installation cluster health checker"
+  echo "       --collect=smart|standard: Run log collection tool to collect diagnostics and logs files from every pod/container. Default is smart"
+  echo "          --component=db2,dsx: Run DB2 Hand log collection,DSX Diagnostics logs collection. Works with --collect=standard option"
+  echo "          --persona=c,a,o: Runs a focused log collection from specific pods related to a personas Collect, Organize and Analyze. Works with --collect=standard option"
+  echo "          --line=N: Capture N number of rows from pod log"
+  echo "       --help: Prints this message"
   echo -e "\n  EXAMPLES:"
-  echo "      $0 -preinstall"
+  echo "      $0 --preinstall"
   echo "      $0 --health"
   echo "      $0 --collect=smart"
-  echo "      $0 --collect=standard --collectdb2"
-  echo "      $0 --collect=standard --collectdsx --line=100"
+  echo "      $0 --collect=standard --component=db2,dsx"
+  echo "      $0 --collect=standard --persona=c,a"
   echo
   exit 0
 }
@@ -53,7 +52,6 @@ Selected_Option() {
 
   if [ ! -z $_ICP_LINE ]; then
     export LINE=$_ICP_LINE
-    echo LINE=$LINE 
   fi
 	
   #Switch between Wizard or Param driven tooling 
@@ -128,15 +126,18 @@ Collect_Logs() {
 
     pluginset="./log_collector/component_sets/collect_all_pod_logs.set"
     # Check for component
-    if [ ! -z $_ICP_COLLECTDB2 ]; then
+    if [ ! -z $_ICP_COMPONENT ] && [ $_ICP_COMPONENT = db2 ]; then
        export COMPONENT=db2
        export DB2POD=`kubectl get pod --all-namespaces --no-headers -o custom-columns=NAME:.metadata.name|grep $COMPONENT`
        pluginset="./log_collector/component_sets/db2_hang_log.set 
                   ./log_collector/component_sets/collect_all_pod_logs.set"
-    elif [ ! -z $_ICP_COLLECTDSX ]; then
+    elif [ ! -z $_ICP_COMPONENT ] && [ $_ICP_COMPONENT = dsx ]; then
        export COMPONENT=dsx
        pluginset="./log_collector/component_sets/dsx_logs.set 
                   ./log_collector/component_sets/collect_all_pod_logs.set"
+    elif [ ! -z $_ICP_PERSONA ]; then
+       export PERSONA=`echo $_ICP_PERSONA| awk '{print toupper($0)}'`
+       pluginset="./log_collector/component_sets/collect_all_pod_logs.set"
     fi
 
   elif [[ "$_ICP_COLLECT" == smart ]]; then

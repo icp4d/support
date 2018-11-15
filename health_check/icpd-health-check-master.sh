@@ -2,6 +2,9 @@
 #run only on master nodes
 
 
+#Acceptable time difference (milliseconds) between nodes.
+NODE_TIMEDIFF=400
+
 setup() {
     . $UTIL_DIR/util.sh
     #commonly used func are inside of util.sh
@@ -36,6 +39,22 @@ health_check() {
                echo -e Ping to node $i ${COLOR_RED}\[FAILED\]${COLOR_NC}
             fi
         done
+
+        echo
+        echo Checking Time difference between nodes...
+        echo ------------------------
+        for i in `echo $all_nodes`
+        do
+
+            diff=`clockdiff $i | awk '{print $3}'`
+            (( diff = $diff < 0 ? $diff * -1 : $diff ))
+            if [ $diff -lt  $NODE_TIMEDIFF ]; then
+               echo -e Time Diff with node $i ${COLOR_GREEN}\[OK\]${COLOR_NC}
+            else
+               echo -e Time diff with node $i ${COLOR_RED}\[FAILED\]${COLOR_NC}
+            fi
+        done
+
 
         echo
         echo Checking node accessible with ssh...

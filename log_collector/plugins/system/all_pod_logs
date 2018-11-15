@@ -12,4 +12,4 @@ setup(){
 
 setup $@
 
-healthy_pods_log_collector
+log_collector
